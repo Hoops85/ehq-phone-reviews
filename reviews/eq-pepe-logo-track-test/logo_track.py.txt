@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""logo_track.py — re-stamp the REAL Equalizer mark onto a logo that was burned into a plate before i2v (Kling etc.).
+
+Why: AI video models smudge/redraw small logos. We burn icon.png into the start plate (so the model moves it with the
+object), then track that burned-in region frame to frame and warp a crisp icon.png back on top, fading out where the
+track becomes unreliable (blur, occlusion, out of frame) instead of letting a sticker slide.
+
+Per object, per frame:
+  1. predict: pyramidal Lucas-Kanade flow on corners around the logo (forward-backward checked) -> RANSAC homography delta
+  2. refine : ECC (MOTION_HOMOGRAPHY) of a frame-0 reference patch (logo + margin, rectified) against the current frame,
+              initialised from the prediction -> removes drift; the ECC correlation is the confidence signal
+  3. guard  : reject implausible warps (area/aspect jumps, off-frame); fall back to prediction with low confidence
+Then offline: confidence-weighted Gaussian smoothing of the 4 corners, alpha = smoothstep(confidence) smoothed in time,
+velocity-matched motion blur on the stamped logo, luminance matched to the plate, composited with a soft edge.
+
+CLI examples
+  logo_track.py --clip in.mp4 --out out.mp4 --seed nose:860,1075,916,1075,916,1127,860,1127
+  logo_track.py --clip in.mp4 --out out.mp4 --seed-json quads.json --debug dbg.mp4 --report rep.json
+  (seed quad = 4 corners TL,TR,BR,BL of the logo's square bounding quad at --seed-frame, in clip pixels.
+   seed-json = {"name": [[x,y]x4], ...}. --logo defaults to brand icon.png; --mode disc keeps its black field = enamel badge,
+   keyed drops the black field.)
+"""
+import argparse, json, os, subprocess, sys
+import numpy as np, cv2
+
+ICON = "/workspace/equalizer-marketing/clients/equalizer/brand/icon.png"
+
+def probe(p):
+    o = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate", "-of", "json", p], capture_output=True, text=True, check=True)
+    s = json.loads(o.stdout)["streams"][0]; n, d = s["r_frame_rate"].split("/"); return s["width"], s["height"], float(n) / float(d)
+
+def read_frames(p, W, H):
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", p, "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], capture_output=True, check=True).stdout
+    a = np.frombuffer(r, np.uint8); k = len(a) // (W * H * 3); return a[:k * W * H * 3].reshape(k, H, W, 3)
+
+def load_logo(path, mode, px=512):
+    im = cv2.imread(path, cv2.IMREAD_COLOR); s = min(im.shape[:2]); y0 = (im.shape[0] - s) // 2; x0 = (im.shape[1] - s) // 2
+    im = cv2.resize(im[y0:y0 + s, x0:x0 + s], (px, px), interpolation=cv2.INTER_AREA).astype(np.float32)
+    yy, xx = np.mgrid[:px, :px]; r = np.hypot(xx - px / 2 + .5, yy - px / 2 + .5)
+    if mode == "disc": a = np.clip((px / 2 - r) / 2.0, 0, 1)
+    else:
+        mx = im.max(2); a = np.clip(mx / 70.0, 0, 1); im = np.where(a[..., None] > 0, im / np.maximum(a[..., None], 1e-3), 0); im = np.clip(im, 0, 255)
+    return im, a.astype(np.float32)
+
+def to_similarity(A):
+    a, b, c, d = A[0, 0], A[0, 1], A[1, 0], A[1, 1]
+    sc = np.sqrt(abs(a * d - b * c)); th = np.arctan2(c - b, a + d)
+    return np.array([[sc * np.cos(th), -sc * np.sin(th), A[0, 2]], [sc * np.sin(th), sc * np.cos(th), A[1, 2]]])
+
+def smoothstep(e0, e1, x): t = np.clip((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t)
+
+def quad_ok(q, prev, W, H):
+    if not np.isfinite(q).all(): return False
+    a = cv2.contourArea(q.astype(np.float32)); ap = cv2.contourArea(prev.astype(np.float32))
+    if a < 16 or ap <= 0 or not (0.6 < a / ap < 1.6): return False
+    if not cv2.isContourConvex(q.astype(np.float32).reshape(-1, 1, 2)): return False
+    c = q.mean(0); return -0.5 * W < c[0] < 1.5 * W and -0.5 * H < c[1] < 1.5 * H
+
+class Tracker:
+    def __init__(self, name, seed, frame0g, canon=96, margin=0.6, refine_seed=True, logo_ref=None, model="similarity", surround=True):
+        self.model = model; self.name = name; self.canon = canon; self.m = margin
+        C = canon * (1 + 2 * margin); self.C = int(round(C)); o = canon * margin
+        self.logo_corners = np.float32([[o, o], [o + canon, o], [o + canon, o + canon], [o, o + canon]])
+        seed = np.float32(seed)
+        if refine_seed and logo_ref is not None: seed = self._refine_seed(seed, frame0g, logo_ref)
+        self.H = cv2.getPerspectiveTransform(self.logo_corners, seed)  # canonical -> frame
+        if self.model != "homography":
+            A = cv2.getAffineTransform(self.logo_corners[:3], seed[:3]); self.H = np.vstack([A, [0, 0, 1]])
+        self.ref = cv2.warpPerspective(frame0g, np.linalg.inv(self.H), (self.C, self.C), flags=cv2.INTER_LINEAR)
+        # ring mask: track the SURFACE around the mark, not the mark itself (i2v models redraw/morph small logos)
+        self.ring = np.full((self.C, self.C), 255, np.uint8)
+        if surround:
+            cc = self.C / 2; cv2.circle(self.ring, (int(cc), int(cc)), int(canon * 0.62), 0, -1)
+        self.ref_sharp = None
+        self.quads = [seed]; self.conf = [1.0]; self.seed = seed
+
+    def _refine_seed(self, seed, g, logo_ref):
+        # align the canonical logo template to frame 0 with ECC (affine) -> sub-pixel seed
+        tpl = cv2.resize(logo_ref, (self.canon, self.canon), interpolation=cv2.INTER_AREA)
+        Hs = cv2.getPerspectiveTransform(np.float32([[0, 0], [self.canon, 0], [self.canon, self.canon], [0, self.canon]]), seed)
+        try:
+            if self.model == "homography":
+                Hr = Hs.astype(np.float32).copy(); motion = cv2.MOTION_HOMOGRAPHY
+            else:
+                Hr = (Hs / Hs[2, 2])[:2].astype(np.float32).copy(); motion = cv2.MOTION_AFFINE
+            _, Hr = cv2.findTransformECC(tpl, g, Hr, motion, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 80, 1e-5), None, 3)
+            if Hr.shape[0] == 2: Hr = np.vstack([Hr, [0, 0, 1]]).astype(np.float32)
+            q = cv2.perspectiveTransform(np.float32([[0, 0], [self.canon, 0], [self.canon, self.canon], [0, self.canon]]).reshape(-1, 1, 2), Hr).reshape(4, 2)
+            if quad_ok(q, seed, g.shape[1], g.shape[0]) and np.abs(q - seed).max() < 0.25 * self.canon * np.sqrt(cv2.contourArea(seed)) / self.canon: return q
+        except cv2.error: pass
+        return seed
+
+    def roi_mask(self, shape, H):
+        return cv2.warpPerspective(self.ring, H, (shape[1], shape[0]), flags=cv2.INTER_NEAREST)
+
+    def step(self, pg, g):
+        H0 = self.H; W, Hh = g.shape[1], g.shape[0]
+        # 1) LK prediction
+        D = None; npts = 0
+        pts = cv2.goodFeaturesToTrack(pg, 120, 0.01, 3, mask=self.roi_mask(pg.shape, H0))
+        if pts is not None and len(pts) >= 4:
+            nxt, st, _ = cv2.calcOpticalFlowPyrLK(pg, g, pts, None, winSize=(21, 21), maxLevel=4)
+            back, st2, _ = cv2.calcOpticalFlowPyrLK(g, pg, nxt, None, winSize=(21, 21), maxLevel=4)
+            ok = (st[:, 0] == 1) & (st2[:, 0] == 1) & (np.linalg.norm((back - pts).reshape(-1, 2), axis=1) < 1.0)
+            if self.model == "homography" and ok.sum() >= 8:
+                D, inl = cv2.findHomography(pts[ok], nxt[ok], cv2.RANSAC, 2.0); npts = int(inl.sum()) if inl is not None else 0
+            elif ok.sum() >= 3:
+                est = cv2.estimateAffinePartial2D if self.model == "similarity" else cv2.estimateAffine2D
+                A, inl = est(pts[ok], nxt[ok], method=cv2.RANSAC, ransacReprojThreshold=2.0)
+                if A is not None: D = np.vstack([A, [0, 0, 1]]); npts = int(inl.sum())
+        Hp = (D @ H0) if D is not None else H0
+        # 2) ECC refinement against frame-0 reference
+        rho = 0.0; Hr = Hp
+        try:
+            if self.model == "homography":
+                w = (Hp / Hp[2, 2]).astype(np.float32)
+                rho, w = cv2.findTransformECC(self.ref, g, w, cv2.MOTION_HOMOGRAPHY, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-4), self.roi_mask(g.shape, Hp), 5)
+                Hr = w.astype(np.float64)
+            else:
+                w = (Hp / Hp[2, 2])[:2].astype(np.float32)
+                rho, w = cv2.findTransformECC(self.ref, g, w, cv2.MOTION_AFFINE, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-4), self.roi_mask(g.shape, Hp), 5)
+                w = w.astype(np.float64)
+                if self.model == "similarity":  # keep the mark round: project ECC affine onto rotation+uniform scale about the mark centre
+                    cc = np.array([self.C / 2, self.C / 2, 1.0]); ctr = w @ cc
+                    Sm = to_similarity(w); Sm[:, 2] = ctr - Sm[:, :2] @ cc[:2]; w = Sm
+                Hr = np.vstack([w, [0, 0, 1]])
+        except cv2.error: rho = 0.0
+        qr = cv2.perspectiveTransform(self.logo_corners.reshape(-1, 1, 2), Hr).reshape(4, 2)
+        qp = cv2.perspectiveTransform(self.logo_corners.reshape(-1, 1, 2), Hp).reshape(4, 2)
+        prev = self.quads[-1]
+        if quad_ok(qr, prev, W, Hh) and np.abs(qr - qp).max() < 0.5 * np.sqrt(cv2.contourArea(prev)):
+            self.H, q = Hr, qr
+        elif quad_ok(qp, prev, W, Hh):
+            self.H, q = Hp, qp; rho = min(rho, 0.5)
+        else:
+            q = prev.copy(); rho = 0.0; npts = 0   # hold, confidence 0 -> fades out
+        # 3) confidence: ECC correlation x sharpness x in-frame x flow support
+        patch = cv2.warpPerspective(g, np.linalg.inv(self.H), (self.C, self.C))
+        lap = cv2.Laplacian(patch, cv2.CV_32F)
+        if self.ref_sharp is None: self.ref_sharp = cv2.Laplacian(self.ref, cv2.CV_32F)[self.ring > 0].var() + 1e-6
+        sharp = lap[self.ring > 0].var() / self.ref_sharp
+        inframe = float(np.all((q[:, 0] > 2) & (q[:, 0] < W - 2) & (q[:, 1] > 2) & (q[:, 1] < Hh - 2)))
+        support = smoothstep(2, 8, npts)
+        conf = smoothstep(0.45, 0.8, rho) * smoothstep(0.15, 0.45, sharp) * inframe * (0.5 + 0.5 * support)
+        self.quads.append(q); self.conf.append(float(conf)); return conf
+
+def gsmooth(x, sigma, w=None):
+    if sigma <= 0: return x
+    r = int(3 * sigma); k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    x = np.asarray(x, np.float64); w = np.ones(len(x)) if w is None else np.asarray(w, np.float64) + 1e-3
+    pad = lambda a: np.concatenate([np.repeat(a[:1], r, 0), a, np.repeat(a[-1:], r, 0)], 0)
+    xs = pad(x * (w.reshape(-1, *([1] * (x.ndim - 1))))); ws = pad(w)
+    num = np.stack([np.convolve(xs.reshape(len(xs), -1)[:, i], k, "valid") for i in range(xs.reshape(len(xs), -1).shape[1])], 1).reshape(x.shape)
+    den = np.convolve(ws, k, "valid").reshape(-1, *([1] * (x.ndim - 1)))
+    return num / den
+
+def stamp(frame, quad, alpha, logo, la, lum_ratio=1.0, vel=(0, 0)):
+    if alpha <= 0.01: return frame
+    H, W = frame.shape[:2]; s = logo.shape[0]
+    M = cv2.getPerspectiveTransform(np.float32([[0, 0], [s, 0], [s, s], [0, s]]), np.float32(quad))
+    x0, y0 = np.floor(quad.min(0)).astype(int) - 6; x1, y1 = np.ceil(quad.max(0)).astype(int) + 6
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(W, x1), min(H, y1)
+    if x1 <= x0 or y1 <= y0: return frame
+    T = np.array([[1, 0, -x0], [0, 1, -y0], [0, 0, 1]], np.float64) @ M
+    col = cv2.warpPerspective(logo, T, (x1 - x0, y1 - y0), flags=cv2.INTER_AREA)
+    a = cv2.warpPerspective(la, T, (x1 - x0, y1 - y0), flags=cv2.INTER_LINEAR)
+    sp = float(np.hypot(*vel))
+    if sp > 1.5:  # velocity-matched motion blur (half-frame shutter)
+        L = int(min(25, sp * 0.5)) | 1; k = np.zeros((L, L), np.float32); c = L // 2
+        d = np.array(vel) / sp; cv2.line(k, (int(c - d[0] * c), int(c - d[1] * c)), (int(c + d[0] * c), int(c + d[1] * c)), 1.0, 1); k /= k.sum()
+        col = cv2.filter2D(col * a[..., None], -1, k); a = cv2.filter2D(a, -1, k); col = col / np.maximum(a[..., None], 1e-3)
+    a = cv2.GaussianBlur(a, (0, 0), 0.6) * alpha
+    roi = frame[y0:y1, x0:x1].astype(np.float32)
+    out = roi * (1 - a[..., None]) + np.clip(col * lum_ratio, 0, 255) * a[..., None]
+    frame = frame.copy(); frame[y0:y1, x0:x1] = out.astype(np.uint8); return frame
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--clip", required=True); ap.add_argument("--out", required=True)
+    ap.add_argument("--seed", action="append", default=[], help="name:x1,y1,x2,y2,x3,y3,x4,y4 (TL,TR,BR,BL)")
+    ap.add_argument("--seed-json"); ap.add_argument("--seed-frame", type=int, default=0)
+    ap.add_argument("--logo", default=ICON); ap.add_argument("--mode", default="disc", choices=["disc", "keyed"])
+    ap.add_argument("--scale", type=float, default=1.0, help="multiply seed coords (e.g. plate px -> clip px)")
+    ap.add_argument("--grow", type=float, default=1.04, help="stamp slightly larger than the burned-in mark to cover it")
+    ap.add_argument("--smooth", type=float, default=1.2, help="corner smoothing sigma in frames")
+    ap.add_argument("--model", default="similarity", choices=["similarity", "affine", "homography"], help="motion model for flow + ECC (similarity = round mark stays round; most stable for small marks)")
+    ap.add_argument("--no-surround", action="store_true", help="also use the mark itself for tracking (only if the i2v model keeps it crisp)")
+    ap.add_argument("--fade-window", type=int, default=9, help="median window (frames) on confidence before fading")
+    ap.add_argument("--no-refine-seed", action="store_true"); ap.add_argument("--debug"); ap.add_argument("--report"); ap.add_argument("--crf", type=int, default=18)
+    a = ap.parse_args()
+    seeds = {}
+    if a.seed_json: seeds.update({k: np.float32(v) for k, v in json.load(open(a.seed_json)).items()})
+    for s in a.seed:
+        n, v = s.split(":", 1); seeds[n] = np.float32([float(t) for t in v.split(",")]).reshape(4, 2)
+    if not seeds: sys.exit("need --seed or --seed-json")
+    seeds = {k: v * a.scale for k, v in seeds.items()}
+    W, H, fps = probe(a.clip); F = read_frames(a.clip, W, H); N = len(F)
+    G = [cv2.GaussianBlur(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY), (0, 0), 0.8) for f in F]
+    logo, la = load_logo(a.logo, a.mode)
+    logo_g = cv2.cvtColor(np.clip(logo * la[..., None], 0, 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
+    sf = a.seed_frame; rep = {}; tracks = {}
+    for name, q in seeds.items():
+        fwd = Tracker(name, q, G[sf], refine_seed=not a.no_refine_seed, logo_ref=logo_g, model=a.model, surround=not a.no_surround)
+        for t in range(sf + 1, N): fwd.step(G[t - 1], G[t])
+        quads = [None] * N; conf = [0.0] * N
+        for i, t in enumerate(range(sf, N)): quads[t] = fwd.quads[i]; conf[t] = fwd.conf[i]
+        if sf > 0:
+            bwd = Tracker(name, fwd.seed, G[sf], refine_seed=False, model=a.model, surround=not a.no_surround)
+            for t in range(sf - 1, -1, -1): bwd.step(G[t + 1], G[t])
+            for i, t in enumerate(range(sf, -1, -1)): quads[t] = bwd.quads[i]; conf[t] = bwd.conf[i]
+        Q = np.stack(quads); C = np.array(conf)
+        Qs = gsmooth(Q, a.smooth, C)
+        # hysteresis: a single bad frame must not flash the AI smudge through -> median over a window, then ease
+        k = a.fade_window // 2; Cm = np.array([np.median(C[max(0, i - k):i + k + 1]) for i in range(N)])
+        alpha = np.clip(gsmooth(smoothstep(0.25, 0.7, Cm), 2.0), 0, 1)
+        c = Qs.mean(1); Qs = c[:, None, :] + (Qs - c[:, None, :]) * a.grow
+        vel = np.gradient(Qs.mean(1), axis=0)
+        # luminance ratio of the burned-in region vs frame 0 (Kling relights things)
+        lum = []
+        for t in range(N):
+            m = np.zeros((H, W), np.uint8); cv2.fillConvexPoly(m, Qs[t].astype(np.int32), 255)
+            lum.append(cv2.mean(G[t], mask=m)[0] if m.any() else np.nan)
+        lum = np.array(lum); base = lum[sf] if np.isfinite(lum[sf]) and lum[sf] > 1 else 1
+        lr = np.clip(gsmooth(np.nan_to_num(lum / base, nan=1.0), 3), 0.8, 1.15)
+        tracks[name] = dict(Q=Qs, alpha=alpha, vel=vel, lr=lr)
+        rep[name] = {"frames": N, "mean_conf": float(C.mean()), "min_conf": float(C.min()), "frames_alpha_gt_0.9": int((alpha > 0.9).sum()),
+                     "frames_faded_out": int((alpha < 0.1).sum()), "conf": [round(float(x), 3) for x in C], "alpha": [round(float(x), 3) for x in alpha],
+                     "quads": [[[round(float(v), 1) for v in p] for p in q] for q in Qs]}
+        print(f"[{name}] frames={N} mean_conf={C.mean():.2f} min_conf={C.min():.2f} alpha>0.9: {(alpha > 0.9).sum()} faded: {(alpha < 0.1).sum()}", flush=True)
+    def enc(path):
+        return subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
+                                 "-c:v", "libx264", "-crf", str(a.crf), "-pix_fmt", "yuv420p", "-movflags", "+faststart", path], stdin=subprocess.PIPE)
+    eo = enc(a.out); ed = enc(a.debug) if a.debug else None
+    for t in range(N):
+        f = F[t]
+        for name, tr in tracks.items(): f = stamp(f, tr["Q"][t], float(tr["alpha"][t]), logo, la, float(tr["lr"][t]), tr["vel"][t])
+        eo.stdin.write(f.tobytes())
+        if ed:
+            d = f.copy()
+            for name, tr in tracks.items():
+                al = float(tr["alpha"][t]); col = (0, int(255 * al), int(255 * (1 - al)))
+                cv2.polylines(d, [tr["Q"][t].astype(np.int32)], True, col, 2)
+                cv2.putText(d, f"{name} a={al:.2f}", tuple(int(v) for v in tr["Q"][t][0] - [0, 8]), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
+            ed.stdin.write(d.tobytes())
+    eo.stdin.close(); eo.wait()
+    if ed: ed.stdin.close(); ed.wait()
+    if a.report: json.dump(rep, open(a.report, "w"))
+    print("wrote", a.out)
+
+if __name__ == "__main__": main()

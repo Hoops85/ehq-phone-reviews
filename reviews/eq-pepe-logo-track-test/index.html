@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Equalizer Pepe · Logo burn-in + tracking test (EP01 roadster launch)</title>
+<style>body{margin:0;background:#0A1633;color:#e8f1ff;font:16px/1.5 -apple-system,system-ui,Inter,sans-serif}main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:8px 0}h2{font-size:18px;margin:24px 0 8px;color:#22D3EE}video,img{width:100%;border-radius:12px;display:block;background:#000;margin:6px 0}
+.tag{display:inline-block;background:#FF3B3B;color:#fff;font-weight:700;font-size:12px;padding:2px 8px;border-radius:6px}.box{background:#0f2148;border:1px solid #1E6BFF;border-radius:12px;padding:12px;margin:12px 0}
+.muted{color:#8CA3C7;font-size:13px}a{color:#22D3EE}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}</style></head><body><main>
+<span class="tag">REVIEW ONLY · NOT POSTED</span>
+<h1>Logo burn-in + tracked re-stamp: EP01 roadster launch (test)</h1>
+<div class="box"><b>Verdict.</b> Burning the logo in first (B) does make it <b>move with the car</b>, but Kling <b>smudges it within about 0.3s</b>: the E swirls like a hubcap and the ring warps. EP01 as shipped (A) had the same problem, because that plate was also burned in before Kling. The only static overlay in EP01 is the corner watermark. <b>C (burn + tracked re-stamp) holds a crisp, real icon.png locked to the nose badge for about 0–1.8s and to the lapel pin for about 0–2.3s</b>, with no visible drift or jitter. After that the car shoots off, shrinks and goes behind smoke, so the stamp fades out on purpose and Kling's smudged badge shows again. For EP01's 1.8s cut, C would cover the whole shot.</div>
+<h2>Side-by-side (A · B · C, with zoomed nose badge and lapel pin)</h2>
+<video controls playsinline loop muted preload="metadata" poster="poster.jpg" src="compare_ABC.mp4"></video>
+<h2>Stills: nose badge at t = 0, 0.5, 1.0, 1.5, 2.0, 2.5s (rows A / B / C)</h2>
+<img src="still_nose_strip.jpg"><h2>Stills: lapel pin (rows A / B / C)</h2><img src="still_pin_strip.jpg">
+<h2>Full frame B vs C (t=0.5s, t=1.25s)</h2><img src="still_full_B_C_12.jpg"><img src="still_full_B_C_30.jpg">
+<h2>The three 9:16 clips</h2>
+<div class="g"><div><b>A</b> EP01 as cut (1.8s)<video controls playsinline loop muted src="A_ep01_cut.mp4"></video><span class="muted"><a href="A_ep01_raw.mp4">A raw 5s Kling</a></span></div>
+<div><b>B</b> new burned plate, raw Kling (5s)<video controls playsinline loop muted src="B_burned_raw.mp4"></video></div>
+<div><b>C</b> B + logo_track.py re-stamp (5s)<video controls playsinline loop muted src="C_burned_tracked.mp4"></video></div>
+<div><b>C debug</b> tracked quads, green = full opacity, red = faded<video controls playsinline loop muted src="C_debug_quads.mp4"></video></div></div>
+<h2>Burned-in start plate (real icon.png, perspective + shading)</h2><img src="plate_burn_zoom.jpg"><img src="plate_burned.jpg">
+<h2>Method</h2><p class="muted">1) icon.png is warped onto the nose badge and the pin in the start plate with a slight keystone and rotation, a top-to-bottom light falloff, a faint specular highlight and a dark paint-gap rim. Colours are not changed. 2) Kling 2.6 Pro i2v with the same prompt and settings as EP01's launch shot. 3) <a href="logo_track.py.txt">logo_track.py</a> tracks the car or suit surface <i>around</i> the mark, not the mark itself, because Kling redraws the mark. It uses LK flow with a forward-backward check and a RANSAC similarity fit, refined each frame against a frame-0 reference patch (masked ECC), so drift is corrected. It then applies confidence-weighted smoothing of the corners, median hysteresis on confidence so one bad frame can't flash the smudge through, velocity-matched motion blur and luminance matching, and fades out where confidence drops. On the frames where the stamp is fully visible, the tracked centre jitters by about 0.4–0.6 px/frame² on average (max about 2.5).</p>
+<h2>Cost</h2><p>1 Kling job: <b>0.156 USDC</b> (cap 0.40). Tracking and re-stamp are free.</p>
+</main></body></html>
