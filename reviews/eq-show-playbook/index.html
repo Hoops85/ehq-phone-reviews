@@ -1,0 +1,621 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EQ show · Production playbook (Ep3+)</title><style>
+body{margin:0;background:#070b18;color:#e8eefc;font:15px/1.5 -apple-system,system-ui,sans-serif}main{max-width:760px;margin:auto;padding:14px}
+h1{font-size:22px}h2{font-size:18px;margin-top:26px;padding:10px 12px;background:#0f1730;border:1px solid #1f2d55;border-radius:10px;color:#ffd76a}
+a{color:#7fc8ff}code{background:#16213f;padding:1px 4px;border-radius:4px;font-size:13px;word-break:break-word}
+table{width:100%;border-collapse:collapse;font-size:13px;display:block;overflow-x:auto}th,td{padding:5px;border-bottom:1px solid #1c2748;vertical-align:top;text-align:left}th{color:#8fb3e8}
+ul,ol{padding-left:20px}li{margin:3px 0}hr{border:0;border-top:1px solid #1f2d55}strong{color:#fff}
+.top{color:#8fb3e8;font-size:13px}</style></head><body><main>
+<div class="top">EQ show · internal production playbook · updated 28 Oct 2026 (AEDT) · source: /workspace/eq-show/PLAYBOOK.md<br>
+Episodes: <a href="../eq-ep1-dip-kling/">Ep1 Buy the Dip (Kling)</a> · <a href="../eq-ep2-sonic-pub-kling/">Ep2 The Sonic Pub (Kling, approved)</a></div>
+<h1>EQ show: production playbook (Ep3 onward)</h1>
+<p>Written 28 Oct 2026 (AEDT), after Blake approved the Ep2 Kling cut ("take stock of the fixes so we know how to create the next").
+Sources: VERIFICATION.md issue log; spend.jsonl for Ep1 (/workspace/eq-pepe-ep1-dip) and Ep2 (/workspace/eq-ep2-spub); SCRIPT.md v1/v2/v3; build scripts (kling_jobs.py, edit_kling.py, cue_kling.py, phonequad.py, houghkeys.py, keytrack.py, medtrack.py); review pages.</p>
+<p><strong>How to use it:</strong> work top to bottom. Every lesson sits at the stage where it is cheapest to apply, BEFORE money is spent. VERIFICATION.md stays the after-the-fact gate and issue log. Each rule here has a matching check there.</p>
+<p><strong>Track record:</strong></p>
+<ul>
+<li>Ep1 "Buy the Dip": preview, then Kling v1, then a v2 fix pass of 8 re-takes.</li>
+<li>Ep2 "The Sonic Pub": preview v1, then the v2 wrap-up re-cut, then the v3 rename, then the Kling build of 20 jobs, then the v2 fix pass of 8 jobs.</li>
+<li>Both episodes needed a whole fix pass after the "final" build. Most of those fixes could have been caught at script or plate stage. The aim for Ep3 is a Kling build that ships without a fix pass.</li>
+</ul>
+<hr />
+<h2>0. Standing rules (apply to every stage)</h2>
+<ul>
+<li><strong>Name:</strong> the lead is <strong>EQ</strong>, spoken "E Q". Feed TTS "E.Q." (or "Ee-cue" if "E.Q." gives a long pause). Never "Pepe" on screen or in dialogue.</li>
+<li><strong>Venue (Ep2 onward): Sonic Pub.</strong> <strong>SPUB / $SPUB is only a token ticker</strong> (pool rows such as "S / SPUB"). The SPUB beer-mug mascot may stay.</li>
+<li><strong>Locked EQ look:</strong> muscular green frog, curly dark hair with red headband, black tux, blue bow tie, ONE gold chain with ONE round medallion carrying the <strong>E logo</strong>. No glasses or sunglasses, no pins, brooches or badges, no pocket square. Warm open grin with wide round eyes, <strong>never half-lidded, sly, smug or squinting</strong>. No tears unless scripted.</li>
+<li>
+<p><strong>Cast:</strong></p>
+<ul>
+<li>Hedgy is always the <strong>commando</strong> (goggles, tactical vest), never in his suit.</li>
+<li>Rekula is the only menace. EQ is never sinister.</li>
+<li>Larry is the cocky gecko, and his chain is the running gag (≠ → =).</li>
+</ul>
+</li>
+<li>
+<p><strong>Cars:</strong> badge-free, compressed-air style roadster. No emblems, no Tesla shapes or signage.</p>
+</li>
+<li><strong>Brands:</strong> no third-party brand marks, no real-person likenesses, no Shadow Exchange. No numbers, APRs, lock durations or yield claims on screen or in lines.</li>
+<li>
+<p><strong>Security:</strong></p>
+<ul>
+<li>Never post to X.</li>
+<li>Never touch the Blake Hooper voice (pcYVsYu9i3NJ8BnehZUg), and never create or delete voices. Use only the saved EQPepe-* voices, via render_voice.py.</li>
+<li>Never print keys. The ElevenLabs key is in /workspace/ehq-reels/.env and PZERO_API_KEY is in /workspace/equalizer-marketing/.env.</li>
+<li>Don't touch equalizer-marketing branches.</li>
+</ul>
+</li>
+<li>
+<p><strong>Backups:</strong> before any re-cut, back up the current outputs as <code>*_vN</code> and keep the previous cut linked on the review page.</p>
+</li>
+</ul>
+<hr />
+<h2>1. Script (free: get it right here)</h2>
+<p><strong>Structure (target 45–55 s; Ep2 landed at 52.1 s, Ep1 ran to 62–63 s against a 56 s target):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Beat</th>
+<th>Time</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hook</td>
+<td>0–5 s</td>
+<td>A motion-led arrival or visual gag plus one announcer line. Name the setting in the first line.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>~5–20 s</td>
+<td>EQ arrives warm and confident. Greet the crew. Plant ONE visual setup that the ending will pay off (Ep2: Larry's chain reads "≠").</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td>~20–35 s</td>
+<td>Someone (usually Larry) is wrong or in trouble. The worried-face reaction shots live here.</td>
+</tr>
+<tr>
+<td>Twist</td>
+<td>~30–40 s</td>
+<td>A researched, on-brand reveal (Ep2: the ladies are the Sonic Pub bribe desk).</td>
+</tr>
+<tr>
+<td>Payoff</td>
+<td>~40–44 s</td>
+<td><strong>ONE</strong> payoff of the core joke, paying off the setup from the front half (Ep2: EQ flicks the slash off ≠ → "There. Now you're equal."). It is the last character beat.</td>
+</tr>
+<tr>
+<td>Celebration</td>
+<td>~44–47 s</td>
+<td><strong>ONE</strong> celebration (Ep2: a single WAGMI cheer).</td>
+</tr>
+<tr>
+<td>End card + tag</td>
+<td>~47–52 s</td>
+<td><strong>ONE</strong> short tag (≤3 s) that calls back to an early gag and does not repeat the punchline word. The loop's last frame blends into the first.</td>
+</tr>
+</tbody>
+</table>
+<p>Rules learned:</p>
+<ul>
+<li>
+<p><strong>No double-ups after the twist.</strong> Ep2 v1 stacked four "equal" payoffs (pool split, equal pours, "I'm EQUAL!", "Where everybody's equal") plus two celebrations. Blake: "a fair bit of double up".</p>
+<ul>
+<li>Count "equal" / "=" payoffs after the twist: <strong>at most one spoken</strong>.</li>
+<li>The tag must not repeat the payoff word or the cold-open line ("another week in the trenches" said twice), unless it is the single deliberate callback.</li>
+</ul>
+</li>
+<li>
+<p><strong>Time every TTS line before writing the shot list.</strong> Render the lines, measure them, and let the dialogue length set the floor of each shot.</p>
+<ul>
+<li>Gap between consecutive lines ≥ the previous line's end + 0.3 s, or the subtitles overlap (Ep2 S17).</li>
+<li>Keep tags ≤3 s. Ep2's first tag ran 3.8 s and repeated "Friday nights".</li>
+<li>Run volumedetect on every trimmed VO file. One ffmpeg typo muted a whole line at −91 dB.</li>
+</ul>
+</li>
+<li>
+<p><strong>Decide the clinch and its setup at script stage</strong>, and note which prop changes state (≠ → =). Every later shot must show the new state.</p>
+</li>
+<li><strong>Avoid symbolic hand poses</strong> (an "=" handshake isn't achievable with these models). Do symbols as graphics.</li>
+<li><strong>One speaker per lip-sync shot</strong> wherever possible. Group lines (WAGMI) go on wide shots that don't need sync.</li>
+<li><strong>Plan reaction shots up front:</strong> each LOW beat needs a worried or sweating still of that character.</li>
+</ul>
+<p><strong>Naming:</strong> EQ (never Pepe). "Sonic Pub" in lines, captions, end cards, phone headers and signs. SPUB only as a ticker. Before publishing, grep SCRIPT.md, page builders, SPEAK/captions and lines.tsv for stale names ("S Pub", "Ess Pub", "Pepe").</p>
+<p><strong>Trenches lingo bank</strong> (researched in /workspace/eq-ep2-spub/RESEARCH.md, used naturally, never more than about one per line):</p>
+<ul>
+<li>gm / gm gm · ser · rolling in (hot) · heavy bags / bags · few understand</li>
+<li>WAGMI / NGMI · send it / full send · up only · LFG</li>
+<li>jeets / paper hands · we're so back / it's so over · collab / 🤝 · bought the dip</li>
+<li>"another week in the trenches" (cold-open only) · "we are all $EQUAL" (community line; use sparingly as the payoff)</li>
+<li>Keep "wife-changing money / poors will be minted" off-script, because it edges toward money claims.</li>
+</ul>
+<p><strong>Script exit gate:</strong></p>
+<ul>
+<li>☐ Hook in ≤5 s.</li>
+<li>☐ One payoff, one celebration and one tag.</li>
+<li>☐ Count of "equal" after the twist ≤1, and the tag is free of it.</li>
+<li>☐ Every line rendered and timed; total 45–55 s.</li>
+<li>☐ Each lip-sync shot has one clear speaker.</li>
+<li>☐ Prop state changes listed.</li>
+<li>☐ No numbers or claims.</li>
+<li>☐ Names grep clean.</li>
+</ul>
+<hr />
+<h2>2. Plates and stills (free: most paid failures were already visible here)</h2>
+<p>Generate plates with GenerateImage, then gate EVERY plate before any paid motion. Kling and Wan carry the plate's faults straight into the clip.</p>
+<p><strong>Composition</strong></p>
+<ul>
+<li>
+<p><strong>Subject large in frame:</strong> a speaking or acting character fills ≥40% of frame height. Zooming more than 1.3× on 1080×1920 goes soft.</p>
+<ul>
+<li>Ep1 S12 Rekula and Ep2 S01 EQ were too small.</li>
+<li>Fix the plate, not the zoom.</li>
+</ul>
+</li>
+<li>
+<p><strong>Arrival and action plates:</strong> frame tight enough that the action finishes inside the shot (Ep2 p01k re-plate: EQ about 2× larger, so the step-out completes in ~1.7 s).</p>
+</li>
+<li><strong>Group shots:</strong> fill the background. Empty space invites the model to invent new characters (Ep2 M4 added two extra frogs).</li>
+</ul>
+<p><strong>Expression and identity</strong></p>
+<ul>
+<li>
+<p><strong>EQ: eyes open and round with a warm open grin.</strong> Never half-lidded, sly or smug. The default "Pepe eyes" read smug.</p>
+<ul>
+<li>Regenerate the plate (it's free) for every EQ hero and clinch shot.</li>
+<li>Ep2 needed new p02w, p16w, p20w and p20x after K02 and K15 were wasted on half-lidded plates.</li>
+</ul>
+</li>
+<li>
+<p><strong>Worried-face stills ready</strong> for every reaction shot (Larry sweating or wincing, e.g. p08w). Expressions are much more reliable from the plate than from the prompt.</p>
+</li>
+<li><strong>Identity check against the canonical still for each character.</strong> Ep1 p21 Hedgy already had a cat mouth and whiskers.</li>
+</ul>
+<p><strong>Props</strong></p>
+<ul>
+<li><strong>Medallion:</strong> burn the E onto EQ's disc on the plate (plates/logo/). Give Larry's disc its episode state.</li>
+<li><strong>Phones:</strong> held with a <strong>blank white or green screen</strong>, upright and not over-tilted, with fingers clearly separated from the screen. The UI is composited later (§5). Never ask the model to draw a phone UI.</li>
+</ul>
+<p><strong>Text, signs and badges</strong></p>
+<ul>
+<li>
+<p><strong>Clean neon and signage:</strong> scan every plate for gibberish text ("SOAYCHN", "SOYCHN", "LAMBO BROS", blackboard scrawl) and paint it out or composite the real sign.</p>
+<ul>
+<li>Use ONE sign layout (stacked "SONIC PUB" board, aspect 1.9) on every plate, so the clips match.</li>
+<li>Size sign-cover boxes to include ALL parts of the old sign (mug, frame).</li>
+</ul>
+</li>
+<li>
+<p><strong>Badge-free cars and clothes:</strong> check the hood, grille and lapels. Paint out pins and emblems on the still.</p>
+</li>
+<li><strong>Derived plates</strong> (a frame grabbed from a Kling or Wan clip to seed the next shot) get the full gate again. Ep1 p02x carried Kling's lapel pin and nose badge.</li>
+</ul>
+<p><strong>Plate exit gate</strong> (zoom-check each plate at 100%):</p>
+<ul>
+<li>☐ On-model look.</li>
+<li>☐ Eyes open with a warm grin.</li>
+<li>☐ E on the medallion.</li>
+<li>☐ No glasses, pins or badges.</li>
+<li>☐ No gibberish text.</li>
+<li>☐ Subject ≥40% height.</li>
+<li>☐ Phone screen blank.</li>
+<li>☐ Group background filled.</li>
+<li>☐ Correct prop state.</li>
+</ul>
+<hr />
+<h2>3. Kling 2.6 Pro prompting (image-to-video, 5 s, 9:16, 24 fps, 121 frames)</h2>
+<p><strong>Use the prompt blocks from /workspace/eq-ep2-spub/build/kling_jobs.py</strong> (copy the file per episode):</p>
+<ul>
+<li><code>STY</code>: "2D cartoon cel animation with thick dark outlines and flat colours, continuing exactly from the start frame, same characters and outfits."</li>
+<li><code>EQ</code> lock (any shot with EQ): on-model list, "exactly ONE gold chain with one round medallion, NO glasses, NO sunglasses, a big warm open-mouthed beaming grin with eyes wide open and round the whole time (never squinting, never smirking, never sly or smug, no raised eyebrow)".</li>
+<li><code>END</code>: "Keep every round medallion and disc exactly where it is. No new badges, pins or emblems on clothes or cars. No text, no letters, no new logos."</li>
+<li><code>LOCKCAR</code> for car shots: "The roadster has no badges, no emblems, no logos, no text."</li>
+<li><code>NEG</code>: morphing, smirk, sly grin, squinting eyes, half-closed eyes, patch, pocket square, face change, extra limbs or fingers, extra characters, text, letters, subtitles, watermark, logo distortion, sunglasses or glasses on the frog, lapel pin, badge, brooch, car emblem, extra chains, scene change, camera cut, reverse motion, fire, flames.</li>
+<li>Always add "Static camera, no zoom."</li>
+</ul>
+<p><strong>Known failure modes and what works</strong></p>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Seen</th>
+<th>What works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Medallion repainted (plain disc, S/J/P glyphs, a big variant after a flash, a "V" after a flick)</td>
+<td>Ep1 K01/K11/S22; Ep2 K10, K15b</td>
+<td>Expect it on EVERY medallion. Plan tracking and re-burn in post (§5). Trim before the repaint (K10 cut before f67).</td>
+</tr>
+<tr>
+<td>Glasses or sunglasses on EQ</td>
+<td>Ep1 K01</td>
+<td>Plate with no glasses, plus the EQ lock and NEG. Check the last frames.</td>
+</tr>
+<tr>
+<td>Invented pins, badges, forehead dots, car emblems</td>
+<td>Ep1 K01c; Ep2 K01, K09 (X-badge pins from f60)</td>
+<td>END and LOCKCAR plus NEG. Trim to the clean window (K09 = f0–42). Inpaint per frame only as a last resort.</td>
+</tr>
+<tr>
+<td>Sly or smug drift after ~2–2.5 s (f50–60)</td>
+<td>Ep1 K01c; Ep2 M1, K01, K01d</td>
+<td>Open-eyed plate. Keep only the on-model window. Put the hero expression early.</td>
+</tr>
+<tr>
+<td>Reversed motion (climbs UP the rope)</td>
+<td>Ep1 K21h</td>
+<td>Check the direction in the strip. If clean, reversing the frames is a free fix.</td>
+</tr>
+<tr>
+<td>Glasses or lights turned into flames ("the table lights up" → candles, then fire)</td>
+<td>Ep2 K06, K06b (even with "cocktails stay cocktails")</td>
+<td><strong>Don't prompt glow or light-up near glassware.</strong> Use pre-light frames and do the light-up in the grade (§5).</td>
+</tr>
+<tr>
+<td>Car hovers instead of landing</td>
+<td>Ep1 S01</td>
+<td>State the contact moment ("tyres touch down on the wet street").</td>
+</tr>
+<tr>
+<td>Car or character drives or walks to camera, so the subject balloons</td>
+<td>Ep1 landing; Ep2 K01</td>
+<td>"Stays in place / stays small in frame, does not walk toward camera". Expect a medallion re-burn.</td>
+</tr>
+<tr>
+<td>Action too slow to finish inside the shot</td>
+<td>Ep2 K01, K01b (slowed 0.57×, steppy)</td>
+<td><strong>Never slow a clip to stretch it.</strong> Prompt "at normal real-time speed … within the first three seconds" and re-plate tighter (K01c worked).</td>
+</tr>
+<tr>
+<td>Over-energetic action (EQ leaps through the air)</td>
+<td>Ep2 K01d</td>
+<td>Use grounded verbs ("swings out, plants both feet, stands up"). Avoid "hops" or "jumps".</td>
+</tr>
+<tr>
+<td>Extra characters in an empty background</td>
+<td>Ep2 MiniMax M4</td>
+<td>"Locked-off camera, only the N characters in the image, nobody new appears."</td>
+</tr>
+<tr>
+<td>Late identity drift (cat-like Hedgy)</td>
+<td>Ep1 S21</td>
+<td>5 s clips only. Check the LAST frames hardest. Cut before the drift.</td>
+</tr>
+<tr>
+<td>Symbolic hand poses ("=" handshake)</td>
+<td>Ep1 S19</td>
+<td>Don't ask for them. Use graphics.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prompt craft that worked:</strong></p>
+<ul>
+<li>One clear physical action per shot, with contact made explicit ("their hands clearly meet and slap").</li>
+<li>Put the beat "within the first second" when timing matters.</li>
+<li>Name characters by look ("the orange gecko with gold chains"), not by name.</li>
+<li>Plan to use frame windows: most good clips give 1.5–3 s of clean frames. Window them per shot (e.g. K06b f18–66, K10 f14+).</li>
+</ul>
+<p><strong>Kling exit gate:</strong></p>
+<ul>
+<li>☐ Strip at 0/25/50/75/100% plus a scrub.</li>
+<li>☐ Look, E and expression held across the window.</li>
+<li>☐ Action happens and runs the right direction.</li>
+<li>☐ No invented props or text.</li>
+<li>☐ No flames.</li>
+<li>☐ Clean window ≥ shot length at native speed.</li>
+</ul>
+<hr />
+<h2>4. Lip-sync (Wan 2.7: 720×1280, 30 fps, 150 frames, audio-driven)</h2>
+<p><strong>Which shots qualify:</strong></p>
+<ul>
+<li>ONE clear speaking face, ≥40% of frame height, front or three-quarter view, mouth unobstructed.</li>
+<li>Body motion small. Wan can carry a simple action (Ep2 W05c hug mid-line, W14 open hand).</li>
+<li>
+<p><strong>Don't sync:</strong></p>
+<ul>
+<li>Multi-speaker group shots (Ep2 S16: five small faces, and Wan drives one face and would lose the Kling clink choreography).</li>
+<li>Off-screen lines.</li>
+<li>Fast action shots where the Kling motion is the point.</li>
+</ul>
+</li>
+<li>
+<p>Write these into the script as deliberate wide or off-screen moments.</p>
+</li>
+</ul>
+<p><strong>Drive audio:</strong></p>
+<ul>
+<li>Use <code>lead</code> seconds of silence plus the line wav, padded to 5 s. Shot mapping: wan_frame = (t − offset + lead) × 30.</li>
+<li>Two lines from the same speaker can share one drive (Ep2 W03 = L03 + L05). Leave other speakers' lines out of the drive.</li>
+</ul>
+<p><strong>Prompt:</strong> "Only <speaker by look> speaks … mouth opens and closes in sync … then closes and rests", plus the voice mood. Add "<other> does NOT speak: mouth stays closed" for any second face. Add the EQ lock for EQ shots, plus "Static camera, no zoom."</p>
+<p><strong>Re-take checks</strong> (Ep2 W05b lost the E and went sly; Ep1 W16 added tears):</p>
+<ul>
+<li>☐ Right character speaking.</li>
+<li>☐ Mouth in sync through the whole line.</li>
+<li>☐ E on the medallion (re-burn regardless).</li>
+<li>☐ Expression warm and wide-eyed, not sly.</li>
+<li>☐ No tears or added emotion.</li>
+<li>☐ Any action beat lands INSIDE the shot window (Ep2 W05: the hug came after the line).</li>
+<li>☐ Move SFX to the new beat (the S05 whoosh moved to 1.85 s).</li>
+</ul>
+<hr />
+<h2>5. Compositing and post</h2>
+<p><strong>Phone UI: always corner-pinned, occluded and light-matched, never a flat overlay</strong> (Blake, Ep2 fix pass).</p>
+<ol>
+<li>Plate with a blank screen (§2). Track the 4 screen corners per frame with build/phonequad.py (convex hull, then a 4-point approx, then Gaussian sigma 2). Check the max step is under 1 px/frame.</li>
+<li>
+<p>Warp the UI (built in screen space, 321×600) with getPerspectiveTransform. Expand the quad by 3 px under the bezel. Apply a rounded-corner mask (r≈26).</p>
+</li>
+<li>
+<p><strong>Occlusion:</strong>
+   - Fingers and thumb = non-white plate pixels inside the quad, morph-opened so the antialiased rim isn't read as a finger.
+   - Leftover white in a 7 px rim → bezel black.</p>
+</li>
+<li>
+<p><strong>Light match:</strong>
+   - Emissive spill (blurred screen, ~0.35) onto fingers and bezel; inner bezel shade.
+   - Faint diagonal glass sheen; 0.55 px blur plus grain matched to the plate.
+   - Motion blur when a corner moves &gt;2 px/frame. Use a stateless frame-to-frame delta.</p>
+</li>
+<li>
+<p><strong>Gate:</strong> start, middle and end frames zoomed at 3.5× for a white rim, sliding or jitter.</p>
+</li>
+</ol>
+<p><strong>Medallions and chain overlays:</strong></p>
+<ul>
+<li>Re-track and re-burn the E on EVERY EQ medallion in every generated clip, as a standard step.</li>
+<li>
+<p>Tools:</p>
+<ul>
+<li>medtrack.py <code>--gold</code>.</li>
+<li>holekeys.py dense keys.</li>
+<li>houghkeys.py / Hough circles for walking shots.</li>
+<li>keytrack.py: manual keys plus refine.</li>
+</ul>
+</li>
+<li>
+<p>Never trust tpltrack confidence below 0.7. Never keep a half-faded ghost stamp: cut to raw frames or hard re-burn.</p>
+</li>
+<li><strong>Fast swings:</strong> track per frame (manual keys plus a Hough refine, low smoothing). QA every source frame of the swing on a crop grid with the track circle drawn, not just output frames at 0.1 s (Ep2 S15 trailing).</li>
+<li>
+<p><strong>Edge-on turns:</strong> perspective-match the overlay.</p>
+<ul>
+<li>Track a width scale (blob w/h) and draw the coin as a foreshortened ellipse.</li>
+<li>Fade only the GLYPH as it goes edge-on.</li>
+</ul>
+</li>
+<li>
+<p><strong>Never fade the cover coin</strong> when the plate's own prop is the wrong design. Ep2 S16's fade revealed Larry's old blue E.</p>
+</li>
+<li>Keep the model's own glint on top of the overlay with a luminance mask.</li>
+<li>After any shot reorder or prop change, re-check the prop state in every later shot.</li>
+</ul>
+<p><strong>Glints and bursts:</strong></p>
+<ul>
+<li><strong>Horizontal shimmer only</strong> across an "=" (a diagonal glint reads as "≠").</li>
+<li>Rays start outside the coin rim. Put the "=" glyph above the medallion with a dark soft shadow, so the E stays visible and the glyph reads on a whiteout.</li>
+<li>Time it to the clip's own flash (Ep2 S10, t = 1.58 s).</li>
+</ul>
+<p><strong>Lighting beats:</strong></p>
+<ul>
+<li>Do "lights up" moments as a graded effect (warm radial bloom plus fairy lights popping on along the rim) over clean pre-light frames.</li>
+</ul>
+<p><strong>Signs and captions:</strong></p>
+<ul>
+<li>Cover signs baked into clips with a per-frame tracked bbox and an opaque board sized to the whole old sign.</li>
+<li>Cap caption width (≤700 px) and check against the top-left E watermark after any text change.</li>
+</ul>
+<p><strong>Speed:</strong> native speed only. If a clip is too short, re-plate or re-prompt; don't slow it down or frame-blend.</p>
+<p><strong>Tooling notes:</strong></p>
+<ul>
+<li>The Read tool caches by filename, so give QA images unique names.</li>
+<li><code>finish_kling.sh</code> takes an out BASE, not a <code>.mp4</code> path.</li>
+</ul>
+<hr />
+<h2>6. Audio and mix spec</h2>
+<ul>
+<li>
+<p><strong>Voices:</strong> only the saved EQPepe-* ElevenLabs voices, via render_voice.py, with emotion tags in brackets ("[warm, grinning]").</p>
+<ul>
+<li>EQ = EQPepe-CoolCat (<code>pepe</code>). Others: announcer, larry, hedgy, rekula, contessa, scarlett, queenie, vivienne.</li>
+<li>Group cheers are stacks of 5 single-voice takes.</li>
+</ul>
+</li>
+<li>
+<p><strong>Fit:</strong> silence-trim each line into vo/fit/. Run volumedetect on every trimmed file. Check consecutive lines are ≥0.3 s apart.</p>
+</li>
+<li>
+<p><strong>Mix:</strong></p>
+<ul>
+<li>Run /workspace/eq-pepe-audio/mix.py from a cue file (cue_kling.py → cue_kling.json): dialogue −16.5 LUFS, music ducked about 10–12 dB under dialogue, SFX −6 dB under dialogue.</li>
+<li>Master to <strong>−14 LUFS integrated, −1 dBTP true peak</strong>, then <strong>AAC 192k at 48 kHz</strong>.</li>
+<li>Measure the result; don't assume it (Ep2 final: −14.4 LUFS, −1.6 dBTP).</li>
+</ul>
+</li>
+<li>
+<p><strong>Sound cues:</strong></p>
+<ul>
+<li>Tie SFX to on-screen contact moments (high-five slaps, the bags thud, the hug whoosh, the medallion chime at the flash).</li>
+<li>Re-time a cue whenever a re-take moves the action.</li>
+<li>Music changes per act (arrival swing → table bed → bossa for the twist → full swing on the flick → bossa loop for the tag).</li>
+</ul>
+</li>
+<li>
+<p><strong>Loop:</strong> the last frame blends into the first (seam diff checked; Ep2 1.02).</p>
+</li>
+</ul>
+<hr />
+<h2>7. Budget (PZERO)</h2>
+<ul>
+<li>
+<p><strong>Read the LIVE wallet first:</strong> <code>/agent/me</code> → <code>confirmedUsdc</code>. Never plan from a recorded figure: on 28 Oct the notes said 0.64 but the live balance was 15.64.</p>
+<ul>
+<li>Log the live balance at the start and end of every batch in spend.jsonl.</li>
+<li>Keep the reserve Blake sets (≥5 USDC lately).</li>
+</ul>
+</li>
+<li>
+<p><strong>Re-quote every batch of 3–4 jobs.</strong> Clearing prices moved between 29 and 45 cents mid-run on Ep1. Plan on the quote; log the actual.</p>
+</li>
+<li><strong>Save every clip</strong> with /workspace/ehq-reels/build/pzero_video_fetch.py (pzero-video-fetch skill) before the download window expires.</li>
+</ul>
+<p><strong>Unit costs seen (actual vs quote):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Quote</th>
+<th>Actual</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kling 2.6 Pro 5 s</td>
+<td>0.312</td>
+<td>0.113–0.176 (0.156 on Ep2)</td>
+</tr>
+<tr>
+<td>Wan 2.7 5 s 720p</td>
+<td>0.44</td>
+<td>0.16–0.25 (0.22 on Ep2)</td>
+</tr>
+<tr>
+<td>MiniMax H3 Turbo 5 s 480p (preview)</td>
+<td>0.08</td>
+<td>0.029–0.03</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Real per-episode costs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Ep1</th>
+<th>Ep2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Preview (MiniMax plus coded animatic)</td>
+<td>0.087 (3 jobs)</td>
+<td>0.15 (5 jobs; v2 re-cut and v3 rename were free)</td>
+</tr>
+<tr>
+<td>Kling build</td>
+<td>3.332 (17 jobs)</td>
+<td>3.451 (20 jobs)</td>
+</tr>
+<tr>
+<td>Fix pass</td>
+<td>1.620 (8 jobs)</td>
+<td>1.568 (8 jobs)</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>≈5.04</strong></td>
+<td><strong>≈5.17</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Waste:</strong></p>
+<ul>
+<li>Ep2 outright rejected jobs: M4, K01, K02, K15, K01d, W05, W05b = <strong>7 of 33 jobs, ≈1.0 USDC, ≈20%</strong>.</li>
+<li>Ep1 also lost K01 to sunglasses.</li>
+<li>Counting the fix pass as rework, <strong>≈30–35% of each episode's spend went on fixing things</strong> that were mostly visible at script or plate stage.</li>
+</ul>
+<p><strong>Ep3 budget plan:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>USDC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Preview</td>
+<td>≈0.15</td>
+</tr>
+<tr>
+<td>Build of ~10 Kling + ~8 Wan</td>
+<td>≈3.3</td>
+</tr>
+<tr>
+<td>Built-in retry line, 20% (one retry per hero shot: arrival, flash, clinch)</td>
+<td>≈0.7</td>
+</tr>
+<tr>
+<td><strong>Target total</strong></td>
+<td><strong>≈4.2</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Cap any fix pass at ≈1.0 USDC.</li>
+<li>If the plate gates in §2 are followed, the fix pass should shrink to 1–3 jobs.</li>
+</ul>
+<hr />
+<h2>8. Pre-flight checklist and per-stage QA gates</h2>
+<p><strong>Before any spend:</strong></p>
+<ul>
+<li>☐ Script gate (§1) passed and Blake has seen the preview.</li>
+<li>☐ Every line rendered, timed and volume-checked; shot list built to those times.</li>
+<li>☐ Every plate passed the plate gate (§2), including derived plates.</li>
+<li>☐ Each shot is tagged Kling (action), Wan (single-face dialogue) or coded/graphic (symbols, light-ups, phone UI), with the reason.</li>
+<li>☐ Prompts built from STY + EQ + END (+ LOCKCAR) and NEG. No light-up or glow near glasses, no symbolic hand poses, timing in "within N seconds".</li>
+<li>☐ Post plan per shot: which medallions need a re-burn, phones to pin, glyph overlays, graded lighting.</li>
+<li>☐ Live wallet read and logged; batch quoted; cap and reserve confirmed; retry line budgeted.</li>
+</ul>
+<p><strong>Per-stage gates:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Gate</th>
+<th>Fail action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Script</td>
+<td>§1 exit gate</td>
+<td>Rewrite (free)</td>
+</tr>
+<tr>
+<td>Plates</td>
+<td>§2 exit gate at 100% zoom</td>
+<td>Regenerate or inpaint (free)</td>
+</tr>
+<tr>
+<td>Each Kling clip, right after fetching</td>
+<td>Strip 0/25/50/75/100% plus scrub; look, E and expression; action and direction; no invented props, text or flames; clean window ≥ shot at native speed</td>
+<td>Trim window, reverse, or one re-take with a corrected prompt or plate. Don't repeat a failed prompt unchanged.</td>
+</tr>
+<tr>
+<td>Each Wan clip</td>
+<td>§4 re-take checks</td>
+<td>Re-take once or re-plate; else go off-screen or wide</td>
+</tr>
+<tr>
+<td>Each composited shot</td>
+<td>Zoom checks on every overlay at start/mid/end plus all fast-swing frames; phone 3.5× rim check; prop state continuity</td>
+<td>Re-track or refine keys</td>
+</tr>
+<tr>
+<td>Whole cut</td>
+<td>Duration 45–55 s; −14 LUFS / −1 dBTP measured; every line synced or deliberately off-screen (list them); contact sheet; loop seam; one full watch at phone size with sound; name grep</td>
+<td>Fix, then re-run the gate</td>
+</tr>
+<tr>
+<td>Publish</td>
+<td>Back up the previous cut as <code>_vN</code>; review page with the previous cut linked; git pull --rebase; commit as Hoops85 <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#72;&#111;&#111;&#112;&#115;&#56;&#53;&#64;&#117;&#115;&#101;&#114;&#115;&#46;&#110;&#111;&#114;&#101;&#112;&#108;&#121;&#46;&#103;&#105;&#116;&#104;&#117;&#98;&#46;&#99;&#111;&#109;">&#72;&#111;&#111;&#112;&#115;&#56;&#53;&#64;&#117;&#115;&#101;&#114;&#115;&#46;&#110;&#111;&#114;&#101;&#112;&#108;&#121;&#46;&#103;&#105;&#116;&#104;&#117;&#98;&#46;&#99;&#111;&#109;</a>; push; poll page and video for HTTP 200 with the new content</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>After every run:</strong> add new issues to the VERIFICATION.md issue log, and fold any new prevention rule into this playbook at the stage where it would have prevented the issue.</p></main></body></html>
